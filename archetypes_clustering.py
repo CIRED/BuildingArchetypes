@@ -46,7 +46,7 @@ def find_k_closest(centroids, data, k=1, distance_norm=2):
     return indices, values
 
 
-def find_archetypes(df, n_clusters=None, distance_threshold=None):
+def find_archetypes(df, n_clusters=None):
     """Create clusters from data and return representative individuals for each cluster.
 
     Use AgglomerativeClustering method.
@@ -56,7 +56,6 @@ def find_archetypes(df, n_clusters=None, distance_threshold=None):
     df: pd.DataFrame
         Initial data to cluster
     n_clusters: int, default None
-    distance_threshold: float, default None
 
     Returns
     -------
@@ -65,19 +64,21 @@ def find_archetypes(df, n_clusters=None, distance_threshold=None):
     """
     data = StandardScaler().fit_transform(df.to_numpy())
     print('Start clustering')
-    """clusters = AgglomerativeClustering(n_clusters=n_clusters, distance_threshold=distance_threshold, linkage='ward', affinity='euclidean').fit_predict(data)
-    # calculate centroids
-    print('Calculate centroids')
-    clf = NearestCentroid().fit(data, clusters)"""
-    clusters = KMeans(n_clusters=n_clusters).fit_predict(data)
+
+    while df.drop_duplicates().shape[0] < n_clusters:
+        n_clusters -= 1
+
+    clusters = KMeans(n_clusters=n_clusters).fit(data)
+
+    centers = clusters.cluster_centers_
+    clusters = clusters.predict(data)
 
     print('End clustering')
 
     df_cluster = pd.concat((df, pd.Series(clusters, index=df.index, name='clusters')), axis=1)
 
-
     # find closest individual from centroids
-    idx, values = find_k_closest(clusters.cluster_centers_, data, k=1, distance_norm=2)
+    idx, values = find_k_closest(centers, data, k=1, distance_norm=2)
 
     df_centers = df_cluster.iloc[idx, :]
 
@@ -90,38 +91,25 @@ def find_archetypes(df, n_clusters=None, distance_threshold=None):
 
 
 if __name__ == '__main__':
+    KEY = 'medium'
 
-    from sklearn.cluster import KMeans
-    import numpy as np
-
-    X = np.array([[1, 2], [1, 4], [1, 0],
-                  [10, 2], [10, 4], [10, 0]])
-    print(X)
-    kmeans = KMeans(n_clusters=2, random_state=0).fit(X)
-    kmeans.labels_
-
-    kmeans.predict([[0, 0], [12, 3]])
-
-    kmeans.cluster_centers_
-
-
-
-    data = pd.read_csv('data_parsed.csv', index_col=[0, 1, 2, 3])
+    data = pd.read_csv('output/data_parsed_{}.csv'.format(KEY), index_col=[0, 1, 2, 3])
 
     var_group = ['Housing type', 'Energy', 'DPE']
     var_archetype = ['Wall', 'Floor', 'Roof', 'Windows', 'Efficiency']
 
-    archetypes = dict()
-    k = 0
-    for n, g in data.groupby(var_group)[var_archetype]:
-        print(n)
-        print(g.shape)
-        archetypes[n] = find_archetypes(g, n_clusters=3)
-        k += 1
-        print(k)
+    for n_clusters in [1, 3, 5]:
+        archetypes = dict()
+        k = 0
+        for n, g in data.groupby(var_group)[var_archetype]:
+            print(n)
+            print(g.shape)
+            archetypes[n] = find_archetypes(g, n_clusters=n_clusters)
+            k += 1
+            print(k)
 
-    archetypes = pd.concat(list(archetypes.values()))
+        archetypes = pd.concat(list(archetypes.values()))
 
-    archetypes.to_csv('archetypes.csv')
-    print('end')
+        archetypes.to_csv('output/archetypes_{}_{}.csv'.format(KEY, n_clusters))
+        print('end')
 
